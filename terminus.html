@@ -1,0 +1,1034 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Terminus RPG</title>
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Share+Tech+Mono&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0a0a0f;
+    --terminal-bg: #0d0d14;
+    --text: #c8d0c8;
+    --text-dim: #5a665a;
+    --accent: #4ae04a;
+    --accent-dim: #1a5c1a;
+    --danger: #e04a4a;
+    --gold: #e0c84a;
+    --border: #1a2a1a;
+    --glow: rgba(74, 224, 74, 0.08);
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+
+  #terminal-header {
+    background: var(--terminal-bg);
+    border-bottom: 1px solid var(--border);
+    padding: 8px 16px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-shrink: 0;
+  }
+
+  #terminal-header .dot {
+    width: 10px; height: 10px; border-radius: 50%;
+  }
+  #terminal-header .dot.red { background: #e05a5a; }
+  #terminal-header .dot.yellow { background: #e0c85a; }
+  #terminal-header .dot.green { background: #5ae05a; }
+
+  #terminal-header .title {
+    font-family: 'VT323', monospace;
+    font-size: 14px;
+    color: var(--text-dim);
+    margin-left: 12px;
+    letter-spacing: 2px;
+    text-transform: uppercase;
+  }
+
+  #fullscreen-btn {
+    margin-left: auto;
+    background: none;
+    border: 1px solid var(--border);
+    color: var(--text-dim);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 11px;
+    padding: 3px 10px;
+    cursor: pointer;
+    transition: all 0.2s;
+  }
+  #fullscreen-btn:hover {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+
+  #terminal {
+    flex: 1;
+    overflow-y: auto;
+    padding: 20px;
+    background: var(--terminal-bg);
+    position: relative;
+    scroll-behavior: smooth;
+  }
+
+  #terminal::before {
+    content: '';
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      transparent,
+      transparent 2px,
+      rgba(0,0,0,0.03) 2px,
+      rgba(0,0,0,0.03) 4px
+    );
+    pointer-events: none;
+    z-index: 1;
+  }
+
+  #output {
+    line-height: 1.6;
+    font-size: 15px;
+    position: relative;
+    z-index: 2;
+    white-space: pre-wrap;
+    word-wrap: break-word;
+  }
+
+  #output .line {
+    min-height: 1.6em;
+  }
+
+  #output .combat { color: var(--danger); }
+  #output .reward { color: var(--gold); }
+  #output .system { color: var(--accent); }
+  #output .dim { color: var(--text-dim); }
+
+  #input-area {
+    display: none;
+    padding: 12px 20px;
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+    flex-shrink: 0;
+    z-index: 10;
+  }
+
+  #input-area.active { display: flex; align-items: center; gap: 8px; }
+
+  #input-area .prompt-char {
+    color: var(--accent);
+    font-size: 16px;
+    font-family: 'VT323', monospace;
+  }
+
+  #user-input {
+    flex: 1;
+    background: none;
+    border: none;
+    color: var(--text);
+    font-family: 'Share Tech Mono', monospace;
+    font-size: 15px;
+    outline: none;
+    caret-color: var(--accent);
+  }
+
+  #user-input::placeholder { color: var(--text-dim); }
+
+  #timed-area {
+    display: none;
+    padding: 16px 20px;
+    background: var(--bg);
+    border-top: 2px solid var(--danger);
+    flex-shrink: 0;
+    z-index: 10;
+    text-align: center;
+  }
+
+  #timed-area.active { display: block; }
+
+  #timed-area .timed-prompt {
+    font-family: 'VT323', monospace;
+    font-size: 28px;
+    color: var(--danger);
+    animation: pulse 0.3s infinite alternate;
+    letter-spacing: 3px;
+  }
+
+  @keyframes pulse {
+    from { opacity: 0.7; }
+    to { opacity: 1; }
+  }
+
+  #timed-area .timed-hint {
+    color: var(--text-dim);
+    font-size: 12px;
+    margin-top: 6px;
+  }
+
+  /* Stats bar */
+  #stats-bar {
+    display: flex;
+    gap: 20px;
+    padding: 8px 20px;
+    background: var(--bg);
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-dim);
+    flex-shrink: 0;
+    z-index: 10;
+    flex-wrap: wrap;
+  }
+  #stats-bar .stat { display: flex; gap: 4px; }
+  #stats-bar .stat-label { color: var(--text-dim); }
+  #stats-bar .stat-value { color: var(--accent); }
+  #stats-bar .stat-value.danger { color: var(--danger); }
+
+  /* Scrollbar */
+  #terminal::-webkit-scrollbar { width: 6px; }
+  #terminal::-webkit-scrollbar-track { background: var(--bg); }
+  #terminal::-webkit-scrollbar-thumb { background: var(--border); border-radius: 3px; }
+  #terminal::-webkit-scrollbar-thumb:hover { background: var(--accent-dim); }
+
+  /* Mobile */
+  @media (max-width: 600px) {
+    #output { font-size: 13px; }
+    #terminal { padding: 12px; }
+    #stats-bar { font-size: 10px; gap: 10px; }
+  }
+</style>
+</head>
+<body>
+
+<div id="terminal-header">
+  <div class="dot red"></div>
+  <div class="dot yellow"></div>
+  <div class="dot green"></div>
+  <span class="title">Terminus v0.1</span>
+  <button id="fullscreen-btn" onclick="toggleFullscreen()">[ fullscreen ]</button>
+</div>
+
+<div id="terminal">
+  <div id="output"></div>
+</div>
+
+<div id="stats-bar">
+  <div class="stat"><span class="stat-label">HP:</span><span class="stat-value" id="stat-hp">10/10</span></div>
+  <div class="stat"><span class="stat-label">ATK:</span><span class="stat-value" id="stat-atk">5</span></div>
+  <div class="stat"><span class="stat-label">DEF:</span><span class="stat-value" id="stat-def">2</span></div>
+  <div class="stat"><span class="stat-label">LVL:</span><span class="stat-value" id="stat-lvl">1</span></div>
+  <div class="stat"><span class="stat-label">EXP:</span><span class="stat-value" id="stat-exp">0/10</span></div>
+  <div class="stat"><span class="stat-label">GOLD:</span><span class="stat-value" id="stat-gold">100</span></div>
+</div>
+
+<div id="input-area">
+  <span class="prompt-char">›</span>
+  <input type="text" id="user-input" placeholder="Type a number..." autocomplete="off">
+</div>
+
+<div id="timed-area">
+  <div class="timed-prompt">>>> PRESS SPACE NOW! <<<</div>
+  <div class="timed-hint">hit spacebar or tap here</div>
+</div>
+
+<script>
+// ===================================================
+// BRIDGE LAYER - Python equivalents for the browser
+// ===================================================
+
+const output = document.getElementById('output');
+const terminal = document.getElementById('terminal');
+const inputArea = document.getElementById('input-area');
+const userInput = document.getElementById('user-input');
+const timedArea = document.getElementById('timed-area');
+
+function scrollToBottom() {
+  terminal.scrollTop = terminal.scrollHeight;
+}
+
+function sleep(ms) {
+  return new Promise(r => setTimeout(r, ms));
+}
+
+async function slowPrint(text, delay = 50, pause = 500, slowMarker = '|', slowDelay = 500) {
+  let span = document.createElement('span');
+  output.appendChild(span);
+  let slow = false;
+  for (let char of text) {
+    if (char === slowMarker) { slow = !slow; continue; }
+    span.textContent += char;
+    scrollToBottom();
+    await sleep(slow ? slowDelay : delay);
+  }
+  output.appendChild(document.createElement('br'));
+  scrollToBottom();
+  await sleep(pause);
+}
+
+async function printLine(text, cssClass = '') {
+  let span = document.createElement('span');
+  if (cssClass) span.className = cssClass;
+  span.textContent = text;
+  output.appendChild(span);
+  output.appendChild(document.createElement('br'));
+  scrollToBottom();
+}
+
+function safeInput(prompt) {
+  return new Promise(async (resolve) => {
+    await slowPrint(prompt, 50, 0);
+    inputArea.classList.add('active');
+    userInput.value = '';
+    userInput.focus();
+    const handler = (e) => {
+      if (e.key === 'Enter') {
+        const val = parseInt(userInput.value);
+        if (isNaN(val)) {
+          printLine('Please enter a number.', 'system');
+          userInput.value = '';
+          return;
+        }
+        userInput.removeEventListener('keydown', handler);
+        inputArea.classList.remove('active');
+        printLine('> ' + val, 'dim');
+        resolve(val);
+      }
+    };
+    userInput.addEventListener('keydown', handler);
+  });
+}
+
+function textInput(prompt) {
+  return new Promise(async (resolve) => {
+    await slowPrint(prompt, 50, 0);
+    inputArea.classList.add('active');
+    userInput.value = '';
+    userInput.placeholder = 'Type your answer...';
+    userInput.focus();
+    const handler = (e) => {
+      if (e.key === 'Enter' && userInput.value.trim()) {
+        const val = userInput.value.trim();
+        userInput.removeEventListener('keydown', handler);
+        inputArea.classList.remove('active');
+        userInput.placeholder = 'Type a number...';
+        printLine('> ' + val, 'dim');
+        resolve(val);
+      }
+    };
+    userInput.addEventListener('keydown', handler);
+  });
+}
+
+function timedAttack() {
+  return new Promise(async (resolve) => {
+    const waitTime = 1000 + Math.random() * 4000;
+    await slowPrint('Wait for it...', 50, 0);
+    await sleep(waitTime);
+    timedArea.classList.add('active');
+    let resolved = false;
+
+    const succeed = () => {
+      if (resolved) return;
+      resolved = true;
+      timedArea.classList.remove('active');
+      document.removeEventListener('keydown', keyHandler);
+      timedArea.removeEventListener('click', clickHandler);
+      resolve(true);
+    };
+
+    const keyHandler = (e) => { if (e.code === 'Space') { e.preventDefault(); succeed(); } };
+    const clickHandler = () => { succeed(); };
+
+    document.addEventListener('keydown', keyHandler);
+    timedArea.addEventListener('click', clickHandler);
+
+    await sleep(750);
+
+    if (!resolved) {
+      resolved = true;
+      timedArea.classList.remove('active');
+      document.removeEventListener('keydown', keyHandler);
+      timedArea.removeEventListener('click', clickHandler);
+      resolve(false);
+    }
+  });
+}
+
+function updateStats() {
+  document.getElementById('stat-hp').textContent = PlayerHealth + '/' + PlayerMaxHealth;
+  document.getElementById('stat-hp').className = PlayerHealth <= PlayerMaxHealth * 0.3 ? 'stat-value danger' : 'stat-value';
+  document.getElementById('stat-atk').textContent = PlayerAttack;
+  document.getElementById('stat-def').textContent = PlayerDefense;
+  document.getElementById('stat-lvl').textContent = PlayerLevel;
+  document.getElementById('stat-exp').textContent = PlayerExp + '/' + PlayerExpCap;
+  document.getElementById('stat-gold').textContent = PlayerCash;
+}
+
+function toggleFullscreen() {
+  if (!document.fullscreenElement) {
+    document.documentElement.requestFullscreen();
+  } else {
+    document.exitFullscreen();
+  }
+}
+
+// ===================================================
+// GAME STATE
+// ===================================================
+
+let PlayerHealth = 10;
+let PlayerMaxHealth = 10;
+let PlayerAttack = 5;
+let PlayerDefense = 2;
+let PlayerLevel = 1;
+let PlayerExp = 0;
+let PlayerExpCap = 10;
+let PlayerCash = 100;
+let PlayerName = '';
+let PlayerInventory = { 'Bandage': 1, 'Attack Potion': 1, 'Defense Potion': 1 };
+let ActiveBuffs = [];
+
+let VillageState = {
+  quests_completed: 0,
+  npcs: ['Guard Thomas', 'Shopkeeper', 'Nurse', 'GuildKeeper'],
+  events_seen: [],
+  unlocked: ['clinic', 'shop', 'guild', 'talk'],
+  story_flags: []
+};
+
+let ShopItems = [
+  { name: 'Bandage', price: 10, description: 'Heals 50% health' },
+  { name: 'Attack Potion', price: 15, description: 'Increases attack by 50%' },
+  { name: 'Defense Potion', price: 15, description: 'Increases defense by 50%' }
+];
+
+// ===================================================
+// BUFF SYSTEM
+// ===================================================
+
+async function tickBuffs() {
+  let expired = [];
+  for (let buff of ActiveBuffs) {
+    buff.turns -= 1;
+    if (buff.turns <= 0) {
+      if (buff.stat === 'attack') {
+        PlayerAttack -= buff.amount;
+        await slowPrint('Attack potion wore off! Attack back to ' + PlayerAttack);
+      } else if (buff.stat === 'defense') {
+        PlayerDefense -= buff.amount;
+        await slowPrint('Defense potion wore off! Defense back to ' + PlayerDefense);
+      }
+      expired.push(buff);
+    }
+  }
+  for (let b of expired) ActiveBuffs.splice(ActiveBuffs.indexOf(b), 1);
+  updateStats();
+}
+
+// ===================================================
+// INVENTORY
+// ===================================================
+
+async function showInventory() {
+  let items = Object.entries(PlayerInventory).filter(([n, a]) => a > 0);
+  if (items.length === 0) { await slowPrint("Your inventory is empty!"); return false; }
+  await slowPrint('--- Inventory ---');
+  for (let i = 0; i < items.length; i++) {
+    await slowPrint((i + 1) + '. ' + items[i][0] + ' x' + items[i][1]);
+  }
+  await slowPrint('0. Cancel');
+  let choice = await safeInput('Use which item?');
+  if (choice === 0 || choice > items.length) { await slowPrint('Cancelled.'); return false; }
+  let chosen = items[choice - 1][0];
+  PlayerInventory[chosen] -= 1;
+  if (chosen === 'Bandage') {
+    let heal = Math.floor(PlayerMaxHealth / 2);
+    PlayerHealth = Math.min(PlayerHealth + heal, PlayerMaxHealth);
+    await slowPrint('You used a Bandage and healed ' + heal + ' HP!');
+    await slowPrint('HP: ' + PlayerHealth + ' / ' + PlayerMaxHealth);
+  } else if (chosen === 'Attack Potion') {
+    let boost = Math.max(Math.floor(PlayerAttack / 4), 1);
+    PlayerAttack += boost;
+    ActiveBuffs.push({ stat: 'attack', amount: boost, turns: 2 });
+    await slowPrint('You used an Attack Potion! Attack +' + boost + ' for 2 turns! (now ' + PlayerAttack + ')');
+  } else if (chosen === 'Defense Potion') {
+    let boost = Math.max(Math.floor(PlayerDefense / 4), 1);
+    PlayerDefense += boost;
+    ActiveBuffs.push({ stat: 'defense', amount: boost, turns: 2 });
+    await slowPrint('You used a Defense Potion! Defense +' + boost + ' for 2 turns! (now ' + PlayerDefense + ')');
+  } else if (chosen === 'Power Crystal') {
+    PlayerAttack += 3;
+    await slowPrint('You used a Power Crystal! Attack permanently +3! (now ' + PlayerAttack + ')');
+  }
+  updateStats();
+  return true;
+}
+
+// ===================================================
+// COMBAT
+// ===================================================
+
+async function enemyAppear(enemyName, enemyHealth, enemyAttack, enemyDefense, gainExp) {
+  await slowPrint('A wild ' + enemyName + ' has appeared!');
+  await sleep(1000);
+  while (enemyHealth > 0 && PlayerHealth > 0) {
+    let choice = await safeInput('What should you do?: 1. Check status, 2. Attack, 3. Use Item');
+    await printLine('');
+    if (choice === 1) {
+      await slowPrint('Health: ' + enemyHealth);
+      await slowPrint('Attack: ' + enemyAttack);
+      await slowPrint('Defense: ' + enemyDefense);
+      await printLine('');
+    } else if (choice === 2) {
+      let hit = await timedAttack();
+      if (hit) {
+        await printLine('Nice timing!', 'system');
+        let dmg = Math.max(PlayerAttack - enemyDefense, 0);
+        enemyHealth -= dmg;
+        enemyHealth = Math.max(enemyHealth, 0);
+        await slowPrint('You attacked the ' + enemyName + '!');
+        await slowPrint('You dealt ' + dmg + ' damage!');
+        await slowPrint(enemyName + ' has ' + enemyHealth + ' health left!');
+        await printLine('');
+      } else {
+        await printLine('Too slow!', 'combat');
+        await slowPrint('You missed!');
+        await printLine('');
+      }
+      if (enemyHealth <= 0) {
+        await slowPrint('You have defeated a ' + enemyName + '!', 50, 300);
+        PlayerExp += gainExp;
+        await printLine('You have gained ' + gainExp + ' exp!', 'reward');
+        await printLine('You now have ' + PlayerExp + ' / ' + PlayerExpCap + ' exp!', 'reward');
+        await printLine('');
+        updateStats();
+        break;
+      }
+    } else if (choice === 3) {
+      let used = await showInventory();
+      await printLine('');
+      if (!used) continue;
+    } else {
+      await slowPrint('Invalid choice!');
+      await printLine('');
+      continue;
+    }
+    await sleep(1000);
+    let eDmg = Math.max(enemyAttack - PlayerDefense, 0);
+    PlayerHealth -= eDmg;
+    PlayerHealth = Math.max(PlayerHealth, 0);
+    await slowPrint(enemyName + ' attacks you!');
+    await printLine(enemyName + ' dealt ' + eDmg + ' damage!', 'combat');
+    await slowPrint('You have ' + PlayerHealth + ' HP left');
+    await printLine('');
+    updateStats();
+    await tickBuffs();
+  }
+
+  if (PlayerExp >= PlayerExpCap) {
+    PlayerLevel += 1;
+    PlayerExp = 0;
+    PlayerExpCap += PlayerExpCap;
+    await printLine('You have leveled up to level ' + PlayerLevel + '!', 'reward');
+    await printLine('Your exp cap is now ' + PlayerExpCap + '!', 'reward');
+    await slowPrint('Your stats have increased!');
+    PlayerMaxHealth += Math.floor(PlayerMaxHealth / 2);
+    PlayerAttack += Math.floor(PlayerAttack / 2);
+    PlayerDefense += Math.floor(PlayerDefense / 2);
+    PlayerHealth = PlayerMaxHealth;
+    await slowPrint('Your max health is now ' + PlayerMaxHealth + '!');
+    await slowPrint('Your attack is now ' + PlayerAttack + '!');
+    await slowPrint('Your defense is now ' + PlayerDefense + '!');
+    await printLine('You have been healed to full health!', 'system');
+    await printLine('');
+    updateStats();
+  }
+  if (PlayerHealth <= 0) {
+    await printLine('You have died!', 'combat');
+    await sleep(1000);
+    await printLine('Game Over!', 'combat');
+  }
+}
+
+// ===================================================
+// CLINIC
+// ===================================================
+
+async function clinic() {
+  await slowPrint("You: I would like to heal my wounds.");
+  await slowPrint("Nurse: That will be 20 coins please.");
+  let choice = await safeInput("1. Pay, 2. Leave");
+  if (choice === 1) {
+    if (PlayerCash >= 20) {
+      PlayerHealth = PlayerMaxHealth;
+      await slowPrint("You have been healed to full health!");
+      PlayerCash -= 20;
+      await slowPrint("You have " + PlayerCash + " coins left!");
+    } else {
+      await slowPrint("Nurse: You don't have enough coins.");
+    }
+  } else if (choice === 2) {
+    await slowPrint("You: I'll come back later.");
+  } else {
+    await slowPrint("Invalid Choice!");
+  }
+  updateStats();
+}
+
+// ===================================================
+// SHOP
+// ===================================================
+
+async function shop() {
+  await slowPrint("Shopkeeper: Welcome, I've got everything you would need!");
+  while (true) {
+    for (let i = 0; i < ShopItems.length; i++) {
+      let item = ShopItems[i];
+      await slowPrint((i + 1) + '. ' + item.name + ' - ' + item.price + ' coins (' + item.description + ')');
+    }
+    await slowPrint('0. Leave');
+    await slowPrint('You have ' + PlayerCash + ' coins.');
+    let choice = await safeInput('What would you like to buy?');
+    if (choice === 0) { await slowPrint("Shopkeeper: Come back anytime!"); break; }
+    if (choice < 0 || choice > ShopItems.length) { await slowPrint("Shopkeeper: I don't sell that."); continue; }
+    let item = ShopItems[choice - 1];
+    if (PlayerCash >= item.price) {
+      PlayerCash -= item.price;
+      PlayerInventory[item.name] = (PlayerInventory[item.name] || 0) + 1;
+      await slowPrint('You bought a ' + item.name + '!');
+      await slowPrint('You have ' + PlayerCash + ' coins left.');
+    } else {
+      await slowPrint("Shopkeeper: You can't afford that.");
+    }
+    updateStats();
+  }
+}
+
+// ===================================================
+// BLACKSMITH
+// ===================================================
+
+async function blacksmith() {
+  await slowPrint("Blacksmith: Need something forged?");
+  let atkBoost = Math.max(Math.floor(PlayerAttack / 3), 1);
+  let defBoost = Math.max(Math.floor(PlayerDefense / 3), 1);
+  await slowPrint('1. Upgrade Weapon (+' + atkBoost + ' attack) - 50 coins');
+  await slowPrint('2. Upgrade Armor (+' + defBoost + ' defense) - 50 coins');
+  await slowPrint('3. Leave');
+  let choice = await safeInput("What'll it be?");
+  if (choice === 1) {
+    if (PlayerCash >= 50) {
+      PlayerAttack += atkBoost; PlayerCash -= 50;
+      await slowPrint("Blacksmith: There you go. Your weapon's sharper now.");
+      await slowPrint('Attack is now ' + PlayerAttack + '!');
+    } else { await slowPrint("Blacksmith: Come back when you can afford it."); }
+  } else if (choice === 2) {
+    if (PlayerCash >= 50) {
+      PlayerDefense += defBoost; PlayerCash -= 50;
+      await slowPrint("Blacksmith: Armor's reinforced. You'll take hits better now.");
+      await slowPrint('Defense is now ' + PlayerDefense + '!');
+    } else { await slowPrint("Blacksmith: Come back when you can afford it."); }
+  } else if (choice === 3) {
+    await slowPrint("Blacksmith: See you around.");
+  } else { await slowPrint("Invalid choice!"); }
+  updateStats();
+}
+
+// ===================================================
+// QUEST SYSTEM
+// ===================================================
+
+const AllQuests = [
+  { name: 'Slime Slayer', description: 'Kill 5 slimes', reward: 40, exp: 10,
+    contents: [
+      () => slowPrint("You: Here they come!"),
+      () => enemyAppear("Slime", 10, 5, 0, 2),
+      () => slowPrint("You: There is plenty more!"),
+      () => enemyAppear("Slime", 10, 5, 0, 2),
+      () => enemyAppear("Slime", 10, 5, 0, 2),
+      () => enemyAppear("Slime", 10, 5, 0, 2),
+      () => slowPrint("A bigger slime blocks your path!"),
+      () => enemyAppear("Big Slime", 15, 5, 1, 5)
+    ]},
+  { name: 'Goblin Raid', description: 'Kill 3 goblins', reward: 75, exp: 20,
+    contents: [
+      () => slowPrint("You: Here they come!"),
+      () => enemyAppear("Goblin", 12, 6, 1, 3),
+      () => slowPrint("You: There is plenty more!"),
+      () => enemyAppear("Goblin", 12, 6, 1, 3),
+      () => enemyAppear("Goblin", 12, 6, 1, 3),
+      () => slowPrint("A goblin chief appears!"),
+      () => enemyAppear("Goblin Chief", 25, 8, 3, 8)
+    ]},
+  { name: 'Wolf Hunt', description: 'Clear out the wolves', reward: 60, exp: 15,
+    contents: [
+      () => slowPrint("You hear howling in the distance..."),
+      () => enemyAppear("Wolf", 5, 7, 1, 3),
+      () => enemyAppear("Wolf", 5, 7, 1, 3),
+      () => slowPrint("The pack leader shows itself!"),
+      () => enemyAppear("Alpha Wolf", 10, 10, 1, 7)
+    ]},
+  { name: 'Bandit Ambush', description: 'Survive the bandit attack', reward: 90, exp: 25,
+    contents: [
+      () => slowPrint("Bandits jump out from behind the trees!"),
+      () => enemyAppear("Bandit", 15, 8, 2, 4),
+      () => enemyAppear("Bandit", 15, 8, 2, 4),
+      () => slowPrint("Their leader draws his blade!"),
+      () => enemyAppear("Bandit Leader", 30, 12, 5, 10)
+    ]},
+  { name: 'Mushroom Madness', description: 'Destroy the toxic mushrooms', reward: 50, exp: 12,
+    contents: [
+      () => slowPrint("The forest floor is covered in glowing mushrooms..."),
+      () => enemyAppear("Toxic Mushroom", 8, 6, 3, 3),
+      () => enemyAppear("Toxic Mushroom", 8, 6, 3, 3),
+      () => enemyAppear("Toxic Mushroom", 8, 6, 3, 3),
+      () => slowPrint("A massive mushroom uproots itself!"),
+      () => enemyAppear("Mushroom King", 20, 9, 5, 8)
+    ]}
+];
+
+let QuestBoard = [AllQuests[0], AllQuests[1]];
+
+function refreshBoard(completedQuest) {
+  let boardNames = QuestBoard.map(q => q.name);
+  let available = AllQuests.filter(q => !boardNames.includes(q.name));
+  if (available.length > 0) {
+    let newQuest = available[Math.floor(Math.random() * available.length)];
+    let idx = QuestBoard.findIndex(q => q.name === completedQuest.name);
+    if (idx !== -1) QuestBoard[idx] = newQuest;
+  }
+}
+
+async function startQuest(questName) {
+  let quest = QuestBoard.find(q => q.name === questName);
+  if (!quest) { await slowPrint("Quest not found!"); return; }
+  await slowPrint("Quest started: " + quest.name);
+  await slowPrint(quest.description);
+  for (let action of quest.contents) {
+    await action();
+    if (PlayerHealth <= 0) break;
+  }
+  if (PlayerHealth > 0) {
+    PlayerCash += quest.reward;
+    VillageState.quests_completed += 1;
+    await printLine('Quest complete! You earned ' + quest.reward + ' coins!', 'reward');
+    refreshBoard(quest);
+    updateStats();
+  }
+}
+
+async function guild() {
+  await slowPrint("GuildKeeper: Welcome.");
+  let choice = await safeInput("1. Quest Board, 2. Bounties, 3. Leave");
+  if (choice === 1) {
+    await slowPrint("GuildKeeper: Here are the quests.");
+    for (let i = 0; i < QuestBoard.length; i++) {
+      let q = QuestBoard[i];
+      await slowPrint((i + 1) + '. ' + q.name + ' - ' + q.description + ' (' + q.reward + ' coins)');
+    }
+    await slowPrint((QuestBoard.length + 1) + '. Leave');
+    let qc = await safeInput("What quest would you like to take?");
+    if (qc >= 1 && qc <= QuestBoard.length) {
+      await slowPrint("GuildKeeper: Good luck!");
+      await startQuest(QuestBoard[qc - 1].name);
+    } else if (qc === QuestBoard.length + 1) {
+      await slowPrint("GuildKeeper: Come back anytime!");
+    } else { await slowPrint("Invalid choice!"); }
+  } else if (choice === 2) {
+    await slowPrint("Bounties are not implemented yet!");
+  } else if (choice === 3) {
+    await slowPrint("GuildKeeper: Come back anytime!");
+  } else { await slowPrint("Invalid choice!"); }
+}
+
+// ===================================================
+// VILLAGE EVENTS
+// ===================================================
+
+const VillageEvents = [
+  { name: 'merchant_rumor', condition: () => VillageState.quests_completed >= 1, once: true,
+    run: async () => { await slowPrint("Guard Thomas: Word is, a traveling merchant has been spotted nearby. Might show up soon."); }},
+  { name: 'guard_warms_up', condition: () => VillageState.quests_completed >= 2, once: true,
+    run: async () => {
+      VillageState.story_flags.push('guard_friendly');
+      await slowPrint("Guard Thomas: You know... you're not so bad. Most people who come through here don't stick around to help.");
+      await slowPrint("Guard Thomas: Thanks for looking out for the village.");
+    }},
+  { name: 'blacksmith_arrives', condition: () => VillageState.quests_completed >= 3, once: true,
+    run: async () => {
+      VillageState.npcs.push('Blacksmith');
+      VillageState.unlocked.push('blacksmith');
+      await slowPrint("You notice a new building near the village square.");
+      await slowPrint("A muscular man is hammering away at an anvil.");
+      await slowPrint("Blacksmith: Name's Bron. Just set up shop here. Heard this village could use someone like me.");
+    }},
+  { name: 'shop_expansion', condition: () => VillageState.quests_completed >= 4, once: true,
+    run: async () => {
+      ShopItems.push({ name: 'Power Crystal', price: 40, description: 'Permanently increases attack by 3' });
+      await slowPrint("Shopkeeper: Got some new stock in! Take a look when you get a chance.");
+    }},
+  { name: 'mysterious_stranger', condition: () => VillageState.quests_completed >= 5, once: true,
+    run: async () => {
+      await slowPrint("You notice a hooded figure standing near the village entrance.");
+      await slowPrint("They glance at you, then vanish into thin air.");
+      await slowPrint("You: |...| What was that about?");
+      await slowPrint("Guard Thomas: oh god not again|...|");
+      await slowPrint("You: What?");
+      await slowPrint("Guard Thomas: Go ask the shopkeeper|...|");
+      VillageState.story_flags.push('stranger_seen');
+    }},
+  { name: 'nurse_worried', condition: () => VillageState.quests_completed >= 6, once: true,
+    run: async () => {
+      await slowPrint("Nurse: I've been seeing more and more injured travelers lately. Something out there is getting worse.");
+      await slowPrint("Nurse: Be careful out there.");
+      VillageState.story_flags.push('danger_rising');
+    }},
+  { name: 'guild_upgrade', condition: () => VillageState.quests_completed >= 7, once: true,
+    run: async () => {
+      await slowPrint("GuildKeeper: We've had so many adventurers coming through lately, I expanded the quest board!");
+      if (QuestBoard.length < 3) {
+        let available = AllQuests.filter(q => !QuestBoard.map(x => x.name).includes(q.name));
+        if (available.length > 0) QuestBoard.push(available[Math.floor(Math.random() * available.length)]);
+      }
+      await slowPrint("The quest board now shows 3 quests at a time!");
+    }},
+  { name: 'village_celebration', condition: () => VillageState.quests_completed >= 10, once: true,
+    run: async () => {
+      await slowPrint("The village square is decorated with banners and lights!");
+      await slowPrint("Guard Thomas: The village is throwing a celebration in your honor!");
+      await slowPrint("Shopkeeper: You've done so much for us. Here, take this.");
+      await printLine("You received 200 coins!", 'reward');
+      PlayerCash += 200;
+      updateStats();
+    }}
+];
+
+async function checkVillageEvents() {
+  for (let event of VillageEvents) {
+    if (!VillageState.events_seen.includes(event.name)) {
+      if (event.condition()) {
+        await event.run();
+        if (event.once) VillageState.events_seen.push(event.name);
+      }
+    }
+  }
+}
+
+// ===================================================
+// TALK TO VILLAGERS
+// ===================================================
+
+async function talkToVillagers() {
+  let npcs = [...VillageState.npcs];
+  for (let i = 0; i < npcs.length; i++) {
+    await slowPrint((i + 1) + '. Talk to ' + npcs[i]);
+  }
+  await slowPrint((npcs.length + 1) + '. Go back');
+  let choice = await safeInput("Who would you like to talk to?");
+  if (choice === npcs.length + 1) return;
+  if (choice < 1 || choice > npcs.length) { await slowPrint("Invalid Choice!"); return; }
+  let npc = npcs[choice - 1];
+
+  if (npc === 'Guard Thomas') {
+    await slowPrint("Guard Thomas: Hello.");
+    if (VillageState.story_flags.includes('guard_friendly')) await slowPrint("Guard Thomas: Good to see you again, friend.");
+    let q = await safeInput("1. Ask about him being so cautious, 2. Ask about the village, 3. Ask about the slimes");
+    if (q === 1) {
+      await slowPrint("You: Hi, i've got a question for you. Why are you so cautious with people?");
+      if (VillageState.story_flags.includes('guard_friendly')) {
+        await slowPrint("Guard Thomas:|...| You've earned my trust, so I'll tell you a little.");
+        await slowPrint("Guard Thomas: Something happened here. Something bad. I lost people I cared about.");
+        await slowPrint("Guard Thomas: That's why I watch the gate so carefully. I won't let it happen again.");
+      } else { await slowPrint("Guard Thomas:|...| I really don't wanna talk about it."); }
+    } else if (q === 2) {
+      await slowPrint("You: Whats the story behind this village?");
+      await slowPrint("Guard Thomas: Nothing special, just a small village. People came together to build a home. Now it's a safe place for everyone.");
+    } else if (q === 3) {
+      await slowPrint("You: Whats up with the slimes?");
+      await slowPrint("Guard Thomas: I dont know, they just keep coming and coming. Try asking the guildkeeper. She knows plenty about monsters.");
+      if (VillageState.story_flags.includes('danger_rising')) await slowPrint("Guard Thomas: Though lately... it's not just slimes. I've been hearing things at night.");
+    } else { await slowPrint("Invalid Choice!"); }
+
+  } else if (npc === 'Shopkeeper') {
+    await slowPrint("ShopKeeper: Welcome, what would you like to buy?");
+    await slowPrint("You: Im not here to buy anything, i just wanna talk.");
+    let q = await safeInput("1. Ask about the guard, 2. Ask about the shop, 3. Ask about cash");
+    if (q === 1) {
+      await slowPrint("You: Why is the guard so cautious with people?");
+      await slowPrint("ShopKeeper: Are you sure you wanna know|...|? Its a horrible story. It all happened a year ago. Some mysterious person came to our village, we thought nothing of it. Just a passer by. Guess what happened? As soon as he got to the main square, he casted some weird spell and everything went crazy. People panicking, screaming, running, everybody started killing each other. Absolute bloodshed. The guard lost his family that day. His kid and wife died. He saw his wife kill their child|...|");
+      await slowPrint("You: Oh|...|");
+      if (VillageState.story_flags.includes('stranger_seen') && !VillageState.story_flags.includes('asked_about_stranger')) {
+        await slowPrint("You: Wait... I saw a hooded figure near the village recently.");
+        await slowPrint("ShopKeeper:|...| What? Are you sure?");
+        await slowPrint("ShopKeeper: If that's who I think it is... we need to be careful.");
+        VillageState.story_flags.push('asked_about_stranger');
+      }
+    } else if (q === 2) {
+      await slowPrint("You: Whats the story behind this store?");
+      await slowPrint("ShopKeeper: Well it started back when the village was first founded. I was in the group that made this place what it is today. We came here first and built a home. Later i decided to open up a shop.");
+    } else if (q === 3) {
+      await slowPrint("You: What's a good way to earn cash?");
+      await slowPrint("ShopKeeper: hmm- You could try adventuring. The guild keeper is the best person to ask. She got all sorts of quests and bounties.");
+    } else { await slowPrint("Invalid Choice!"); }
+
+  } else if (npc === 'Nurse') {
+    await slowPrint("Nurse: Hello, what can i do for you?");
+    await slowPrint("You: i just wanna talk.");
+    let q = await safeInput("1. Ask about the guard, 2. Ask about clinic, 3. Ask about status effects");
+    if (q === 1) {
+      await slowPrint("You: Why is the guard so cautious with people?");
+      await slowPrint("Nurse: I think you should ask the shopkeeper. I dont really want to talk about it|...|");
+    } else if (q === 2) {
+      await slowPrint("You: Whats the story behind this clinic?");
+      await slowPrint("Nurse: just a clinic that i opened up. I was the first nurse in the village.");
+    } else if (q === 3) {
+      await slowPrint("You: What do status effects do?");
+      await slowPrint("Nurse: They either apply debuffs or buffs to you, paralyze stuns you for a turn, poison does damage over time, and burn increases damage taken. Buffs are the opposite and their names are pretty self explanatory.");
+    } else { await slowPrint("Invalid Choice!"); }
+
+  } else if (npc === 'GuildKeeper') {
+    await slowPrint("GuildKeeper: Welcome, what are you here for?");
+    await slowPrint("You: i just wanna talk.");
+    let q = await safeInput("1. Ask about the guard, 2. Ask about guild, 3. Ask about quests");
+    if (q === 1) {
+      await slowPrint("You: Why is the guard so cautious with people?");
+      await slowPrint("GuildKeeper: I dont really know. When i came here he already was like that. I mean him and the shopkeeper are friends so go ask him.");
+    } else if (q === 2) {
+      await slowPrint("You: What are guilds for?");
+      await slowPrint("GuildKeeper: Places where adventurers come to find quests and bounties. But you gotta bring back stuff you got from them like slime goo or other monster parts.");
+    } else if (q === 3) {
+      await slowPrint("You: What quests are there?");
+      await slowPrint("GuildKeeper: There are many quests. You can find them on the quest board.");
+    } else { await slowPrint("Invalid Choice!"); }
+
+  } else if (npc === 'Blacksmith') {
+    await slowPrint("Blacksmith: Hey. Need something?");
+    await slowPrint("You: Just wanted to chat.");
+    let q = await safeInput("1. Ask about himself, 2. Ask about the village, 3. Ask about gear");
+    if (q === 1) {
+      await slowPrint("You: So where are you from?");
+      await slowPrint("Blacksmith: Used to work in a big city. Got tired of it. Heard about Pertia and figured a small village could use a good smith.");
+    } else if (q === 2) {
+      await slowPrint("You: What do you think of the village?");
+      await slowPrint("Blacksmith: Quiet. I like it. People here are good. Bit jumpy, but good.");
+    } else if (q === 3) {
+      await slowPrint("You: Any tips on gear?");
+      await slowPrint("Blacksmith: Upgrade often. A dull blade will get you killed faster than no blade at all. Come by my forge when you've got the coin.");
+    } else { await slowPrint("Invalid Choice!"); }
+
+  } else {
+    await slowPrint(npc + " doesn't have much to say right now.");
+  }
+}
+
+// ===================================================
+// VILLAGE
+// ===================================================
+
+async function enterVillage() {
+  await slowPrint("You return to Pertia.");
+  await checkVillageEvents();
+
+  while (true) {
+    await slowPrint("Where would you like to go?");
+    let options = [];
+    if (VillageState.unlocked.includes('clinic')) options.push(['Clinic', clinic]);
+    if (VillageState.unlocked.includes('shop')) options.push(['Shop', shop]);
+    if (VillageState.unlocked.includes('guild')) options.push(['Adventurers Guild', guild]);
+    if (VillageState.unlocked.includes('blacksmith')) options.push(['Blacksmith', blacksmith]);
+    if (VillageState.unlocked.includes('talk')) options.push(['Talk to villagers', talkToVillagers]);
+    options.push(['Leave village', null]);
+
+    for (let i = 0; i < options.length; i++) {
+      await slowPrint((i + 1) + '. ' + options[i][0]);
+    }
+
+    let choice = await safeInput("Choose");
+    if (choice >= 1 && choice <= options.length) {
+      if (options[choice - 1][1] === null) {
+        await slowPrint("You: I'll be on my way now!");
+        await slowPrint("Guard Thomas: Stay safe out there.");
+        break;
+      } else {
+        await options[choice - 1][1]();
+      }
+    } else { await slowPrint("Invalid choice!"); }
+  }
+}
+
+// ===================================================
+// MAIN GAME
+// ===================================================
+
+async function main() {
+  PlayerName = await textInput("What's your name, adventurer?: ");
+  updateStats();
+  await slowPrint("???: Welcome to Terminus, " + PlayerName + ".");
+  await slowPrint("...", 500, 500);
+  await slowPrint("You open your eyes. Trees. Dirt. Sky.");
+  await slowPrint("You: ...Where am I?");
+  await slowPrint("You: A forest. Great. No memory of how I got here.");
+  await slowPrint("You: And there's something slimy crawling toward me. Fantastic.");
+
+  await enemyAppear("Slime", 10, 5, 0, 2);
+  if (PlayerHealth <= 0) return;
+
+  await slowPrint("You: Okay— ow. Didn't expect goo to hit that hard.");
+  await slowPrint("You: That voice earlier... who was that?");
+  await slowPrint("You: Whatever. I need to find shelter before more of those things show up.");
+  await slowPrint("You: Now, which way...");
+  await safeInput("1. Go north, 2. Go south.");
+  await slowPrint("You went east. Don't ask why.");
+
+  await enemyAppear("Slime", 10, 5, 0, 2);
+  if (PlayerHealth <= 0) return;
+
+  await slowPrint("You: (These things are everywhere...)");
+  await slowPrint("You: (I wonder if they're always this aggressive.)");
+  await slowPrint("You: (Wait— is that a village?)");
+  await slowPrint("Guard Thomas: Halt! ...Oh, just a traveler. Welcome to Pertia.");
+  await slowPrint("You: Thanks. Rough day.");
+
+  await enterVillage();
+
+  await slowPrint("You step outside the village walls.");
+  await slowPrint("The forest stretches endlessly in every direction.");
+  await slowPrint("You: Well... only one way to go. Forward.");
+
+  const encounters = [
+    () => enemyAppear("Slime", 10, 5, 0, 2),
+    () => enemyAppear("Wolf", 14, 7, 2, 4),
+    () => enemyAppear("Goblin", 12, 6, 1, 3),
+    async () => { await printLine("You found 15 coins on the ground!", 'reward'); PlayerCash += 15; updateStats(); },
+    () => slowPrint("The path is quiet... for now.")
+  ];
+
+  while (PlayerHealth > 0) {
+    await slowPrint("You venture deeper into the wilderness...");
+    let encounter = encounters[Math.floor(Math.random() * encounters.length)];
+    await encounter();
+    if (PlayerHealth <= 0) break;
+    let goBack = await safeInput("1. Return to village, 2. Keep exploring");
+    if (goBack === 1) {
+      await enterVillage();
+    } else {
+      await slowPrint("You press onward...");
+    }
+  }
+}
+
+// Start the game
+main();
+</script>
+</body>
+</html>
